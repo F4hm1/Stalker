@@ -1,6 +1,7 @@
 package com.avoupavou.stalker.fragments;
 
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -8,7 +9,6 @@ import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.avoupavou.stalker.activities.PlaceActivity;
 import com.facebook.AccessToken;
 import com.facebook.AccessTokenTracker;
 import com.facebook.CallbackManager;
@@ -40,6 +40,7 @@ public class AuthenticateFragment extends android.app.Fragment {
 
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
+    private OnFragmentInteractionListener mListener;
     private static final String ARG_PARAM1 = "param1";
     private static final String ARG_PARAM2 = "param2";
     private final String TAG = "AuthFrag";
@@ -116,8 +117,7 @@ public class AuthenticateFragment extends android.app.Fragment {
                         if (user != null) {
                             // User is signed in
                             Log.d(TAG, "onAuthStateChanged:signed_in:" + user.getUid());
-                            Intent toLocationActivity = new Intent(getApplicationContext(), PlaceActivity.class);
-                            startActivity(toLocationActivity);
+                            onLoginComplete();
                         } else {
                             // User is signed out
                             Log.d(TAG, "onAuthStateChanged:signed_out");
@@ -166,6 +166,34 @@ public class AuthenticateFragment extends android.app.Fragment {
                         }
                     }
                 });
+    }
+
+    public void onLoginComplete() {
+        if (mListener != null) {
+            mListener.onFragmentInteraction();
+        }
+    }
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof PlaceFragment.OnFragmentInteractionListener) {
+            mListener = (OnFragmentInteractionListener) context;
+        } else {
+            throw new RuntimeException(context.toString()
+                    + " must implement OnFragmentInteractionListener");
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        mListener = null;
+    }
+
+
+    public interface OnFragmentInteractionListener {
+        void onFragmentInteraction();
     }
 
 }
