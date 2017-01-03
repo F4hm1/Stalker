@@ -26,6 +26,10 @@ import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.location.places.PlaceLikelihoodBuffer;
 import com.google.android.gms.location.places.Places;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.util.ArrayList;
 
@@ -37,7 +41,7 @@ import java.util.ArrayList;
  * Use the {@link PlaceFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnectionFailedListener {
+public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnectionFailedListener, OnMapReadyCallback {
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String ARG_PARAM1 = "param1";
@@ -53,7 +57,7 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
     ArrayList<String> nearPlacesNames;
     String userSelectedPlaceName;
     ArrayList<PlaceEntry> myDataset;
-    private GoogleApiClient mGoogleApiClient;
+    private GoogleApiClient placeApiClient;
     private RecyclerView mRecyclerView;
     private RecyclerView.Adapter mAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
@@ -87,14 +91,36 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
-        mGoogleApiClient = new GoogleApiClient
-                .Builder(getActivity())
-                .addApi(Places.GEO_DATA_API)
-                .addApi(Places.PLACE_DETECTION_API)
-                .enableAutoManage((FragmentActivity) getActivity(), this)
-                .build();
-        nearPlacesNames = new ArrayList<>();
+
+        initPlaceApiClient();
+        if (nearPlacesNames == null)
+            nearPlacesNames = new ArrayList<>();
         tryGrandPermission();
+
+    }
+
+    public void getMapA() {
+        MapFragment mapFragment = (MapFragment) getFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+    }
+
+    private void initPlaceApiClient() {
+        if (placeApiClient == null || !placeApiClient.isConnected()) {
+            placeApiClient = new GoogleApiClient
+                    .Builder(getActivity())
+                    .addApi(Places.GEO_DATA_API)
+                    .addApi(Places.PLACE_DETECTION_API)
+                    .enableAutoManage((FragmentActivity) getActivity(), this)
+                    .build();
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        placeApiClient.stopAutoManage((FragmentActivity) getActivity());
+        placeApiClient.disconnect();
 
     }
 
@@ -156,7 +182,7 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
     }
 
     void getCurrentPlace() throws SecurityException {
-        PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi.getCurrentPlace(mGoogleApiClient, null);
+        PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi.getCurrentPlace(placeApiClient, null);
         result.setResultCallback(new ResultCallback<PlaceLikelihoodBuffer>() {
             @Override
             public void onResult(PlaceLikelihoodBuffer likelyPlaces) {
@@ -165,9 +191,11 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
                     if (likelyPlaces.get(i).getLikelihood() == 0) continue;
 
                     place.setName(likelyPlaces.get(i).getPlace().getName().toString());
+                    place.setLatLon(likelyPlaces.get(i).getPlace().getLatLng());
                     myDataset.add(place);
                     mAdapter.notifyItemInserted(myDataset.size() - 1);
                 }
+                getMapA();
                 likelyPlaces.release();
             }
         });
@@ -202,10 +230,7 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
                 new RecyclerItemClickListener(getActivity(), new RecyclerItemClickListener.OnItemClickListener() {
                     @Override
                     public void onItemClick(View view, int position) {
-                        //Intent toPeopleIntent = new Intent(getActivity(), PeopleListActivity.class);
-                        //toPeopleIntent.putExtra("placeName", myDataset.get(position).getName());
-                        //startActivity(toPeopleIntent);
-                        onButtonPressed(myDataset.get(position).getName());
+                        onItemClicked(myDataset.get(position).getName());
                     }
                 })
         );
@@ -213,9 +238,9 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
     }
 
 
-    public void onButtonPressed(String a) {
+    public void onItemClicked(String placeName) {
         if (mListener != null) {
-            mListener.onFragmentInteraction(a);
+            mListener.onFragmentInteraction(placeName);
         }
     }
 
@@ -236,18 +261,14 @@ public class PlaceFragment extends Fragment implements GoogleApiClient.OnConnect
         mListener = null;
     }
 
-    /**
-     * This interface must be implemented by activities that contain this
-     * fragment to allow an interaction in this fragment to be communicated
-     * to the activity and potentially other fragments contained in that
-     * activity.
-     * <p>
-     * See the Android Training lesson <a href=
-     * "http://developer.android.com/training/basics/fragments/communicating.html"
-     * >Communicating with Other Fragments</a> for more information.
-     */
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        for (int i = 0; i < myDataset.size(); i++) {
+            googleMap.addMarker(new MarkerOptions().position(myDataset.get(i).getLatLon()).title(myDataset.get(i).getName()));
+        }
+    }
+
     public interface OnFragmentInteractionListener {
-        // TODO: Update argument type and name
         void onFragmentInteraction(String name);
     }
 }

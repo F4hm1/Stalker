@@ -10,9 +10,11 @@ import android.location.Location;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.Toast;
 
 import com.avoupavou.stalker.R;
 import com.avoupavou.stalker.fragments.AuthenticateFragment;
@@ -29,11 +31,17 @@ import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.LatLng;
 
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PlaceFragment.OnFragmentInteractionListener, AuthenticateFragment.OnFragmentInteractionListener {
+public class MainActivity extends AppCompatActivity implements
+        OnMapReadyCallback,
+        PlaceFragment.OnFragmentInteractionListener,
+        AuthenticateFragment.OnFragmentInteractionListener {
+
+
     final int MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 123;
-    GoogleApiClient client;
+    GoogleApiClient awarenessApiClient;
     FragmentManager fragmentManager;
     FragmentTransaction fragmentTransaction;
+    GoogleMap googleMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,20 +52,62 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         setContentView(R.layout.activity_main);
 
-        client = new GoogleApiClient.Builder(getApplicationContext())
-                .addApi(Awareness.API)
-                .build();
-        client.connect();
-
         fragmentManager = getFragmentManager();
-
-        MapFragment mapFragment = (MapFragment) getFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
-
+        initAwarenessClient();
+        requestLocationPermission();
     }
 
-    public void goToFacebook(View view) {
+    private void initAwarenessClient() {
+        if (awarenessApiClient == null || !awarenessApiClient.isConnected()) {
+            awarenessApiClient = new GoogleApiClient.Builder(getApplicationContext())
+                    .addApi(Awareness.API)
+                    .build();
+            awarenessApiClient.connect();
+        }
+    }
+
+    private void initMapFragment() {
+        MapFragment mapFragment = (MapFragment) fragmentManager
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+    }
+
+    private void requestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)) {
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+                Toast.makeText(this, "We need this permission bro", Toast.LENGTH_SHORT).show();
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+            } else {
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+            }
+        } else {
+            initMapFragment();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (permissions.length > 0) {
+            if (requestCode == MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION) {
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) initMapFragment();
+            }
+        }
+    }
+
+    public void startFacebookFragment(View view) {
         fragmentTransaction = fragmentManager.beginTransaction();
         Fragment fragment = new AuthenticateFragment();
         fragmentTransaction.add(fragment, "facebook_frag_tag");
@@ -77,18 +127,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(final GoogleMap googleMap) {
         googleMap.getUiSettings().setAllGesturesEnabled(false);
 
-
-        if (ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                    MY_PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
-            return;
-        }
         googleMap.setMaxZoomPreference(20.0f);
         googleMap.setMinZoomPreference(10.0f);
         final LatLng[] currentLocation = new LatLng[1];
 
-        Awareness.SnapshotApi.getLocation(client)
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        Awareness.SnapshotApi.getLocation(awarenessApiClient)
                 .setResultCallback(new ResultCallback<LocationResult>() {
                     @Override
                     public void onResult(@NonNull LocationResult locationResult) {
